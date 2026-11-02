@@ -6,6 +6,8 @@ An interactive story map from an open-data research prototype covering Johannesb
 
 The map also shows a modelled electric feeder network with buses every 15 minutes. Those routes are candidates, not proposed services. Bus speeds, costs and demand are placeholders.
 
+Working draft for a supervisor and research team. It shows all study layers, including candidate zones and modelled taxi integration risk. Those risk ratings are judgements from open data, not findings about any operator or association.
+
 ## Data sources
 - OpenStreetMap contributors (ODbL)
 - WorldPop 2020 constrained population (CC BY 4.0), scaled to Census 2022 metro totals
