@@ -697,6 +697,8 @@ table{border-collapse:collapse;width:100%;font-size:13.5px;margin-bottom:14px;ba
 .pin{float:right;padding:2px 8px;font-size:12.5px}
 @media (max-width:820px){#scnpanel{overflow:visible}.sl label{grid-template-columns:120px 1fr 40px}}
 .hint{font-size:12.5px;color:var(--muted);margin:4px 0 0}
+.ct{font-size:12.5px;color:var(--muted);margin:10px 0 2px;font-weight:600}
+svg.ch2{width:100%;height:auto;display:block;font:11.5px "Helvetica Neue",Arial,sans-serif;fill:var(--ink)}svg.ch2 text{fill:var(--ink)}svg.ch2 text.b{font-weight:700}svg.ch2 text.m{fill:var(--muted);font-size:11px}svg.ch2 .row{cursor:pointer}svg.ch2 .row:hover rect:first-of-type{fill:#eef1ef}
 </style><script>window.H0=location.hash</script></head><body><div id="zoom" role="dialog" aria-label="Details"></div><div id="side"><div id="flag">Working draft for supervisor and team. Please do not forward.</div><div id="modes" role="tablist"><button id="mStory" class="on" role="tab">Story and layers</button><button id="mBus" role="tab">Moving buses</button><button id="mScn" role="tab">Scenarios</button></div><div id="content"></div><div id="buspanel"><h1>A bus at a fixed interval</h1><p>A resident counts as connected only if they can walk up to 500 m to a stop where an electric bus comes every 15 minutes, all day. Modelled candidate routes, not a confirmed plan.</p><div class="tabs" id="stages"></div><div class="stats" id="stats"></div><div class="clock"><div class="row"><span class="time" id="time">07:30</span><button id="play">Pause</button><button id="spd">Speed: 2 min/s</button></div><input type="range" id="clock" min="0" max="960" step="1" aria-label="Time of day"><div id="running" style="font-size:13.5px;color:var(--muted)"></div></div><h2>Find a route</h2><input id="rfind" type="search" placeholder="Type a place, hub or route number" aria-label="Filter routes"><select id="rsel" aria-label="Choose a route"></select><div class="row" style="margin-bottom:8px"><button id="rzoom">Zoom to route</button><button id="rall">Whole network</button></div><h2>Selected route</h2><div id="detail"><p>Select any route on the map, or choose one above, to see its timetable and details.</p></div><p class="note">Speeds are placeholders because no open minibus-taxi route file exists for Gauteng. Near-route figures count formal routes and mapped taxi ranks only, so they understate taxi coverage. Costs, ridership and day-to-day variability are placeholders. Roads have not been checked for width or condition, and the taxi industry has not been consulted.</p></div><div id="scnpanel"><h1>Scenarios by area</h1><p>Hover over a zone to compare eight ways of serving it, or select a zone to keep it in view. The best three follow the priorities you set below, so the answer changes from place to place.</p><div id="sOut"></div>
 <h2>Demand</h2><div class="tabs" id="sDem"><button data-d="Low">Low</button><button data-d="Mid" class="on">Mid</button><button data-d="High">High</button></div>
 <h2>What matters most</h2><div class="sl">
@@ -891,7 +893,20 @@ function why(r){
   let s=good.length?'Best of the eight on '+list(good):'No single strength, but few weaknesses';if(bad.length)s+='; worst on '+list(bad);
   if(r.full)s+='. Buses fill up at peak';if(r.saved<=0)s+='. No faster than walking';return s+'.';
 }
-let on=false,layer=null,linkL=L.layerGroup(),pinned=null,sel=0,best={},polys={};
+
+// Inline SVG charts. Every bar carries a text label, so colour is never the only cue.
+const SHORT={tuk:'Tuk-tuk',ev:'6-seat feeder',mini:'16-seat minibus',bus:'Bus, 15 min'};
+const sname=o=>`${SHORT[o.v]}, ${o.f==='half'?'half':'full'} fare`;
+function scoreChart(rs,selI){const W=410,L=150,BW=W-L-40,H=20,h=rs.length*H+6;
+  return `<svg class="ch2" viewBox="0 0 ${W} ${h}" role="img" aria-label="Scores of the eight options">${rs.map((r,i)=>{const y=i*H+3,w=Math.max(2,BW*r.score/100);
+    return `<g class="row" data-i="${i}"><title>${oname(r.o)}: ${Math.round(r.score)} of 100. Families ${Math.round(r.n_fam*100)}, jobs ${Math.round(r.n_jobs*100)}, public cost ${Math.round(r.n_cost*100)}, taxi conflict ${Math.round(r.n_risk*100)} (each out of 100)</title><rect x="0" y="${y-2}" width="${W}" height="${H}" fill="${i===selI?'#eef1ef':'transparent'}"/><text x="${L-6}" y="${y+12}" text-anchor="end" class="${i===selI?'b':''}">${sname(r.o)}</text><rect x="${L}" y="${y+2}" width="${w}" height="12" rx="2" fill="${ocol(r.o)}"/><text x="${L+w+5}" y="${y+12}">${Math.round(r.score)}</text></g>`}).join('')}</svg>`}
+function moneyChart(rs,selI){const W=410,L=150,BW=W-L-10,H=20,h=rs.length*H+22,m=Math.max(100,...rs.map(r=>Math.abs(r.gain))),x0=L+BW/2,sc=(BW/2-34)/m;
+  return `<svg class="ch2" viewBox="0 0 ${W} ${h}" role="img" aria-label="Household better or worse off per month for each option"><line x1="${x0}" x2="${x0}" y1="0" y2="${h-18}" stroke="#b9c2c0"/>${rs.map((r,i)=>{const y=i*H+3,w=Math.max(1.5,Math.abs(r.gain)*sc),neg=r.gain<0,x=neg?x0-w:x0;
+    return `<g class="row" data-i="${i}"><title>${oname(r.o)}: time saved worth ${R(r.tv)}, new fares ${R(r.extra)}, net ${R(r.gain)} a month</title><rect x="0" y="${y-2}" width="${W}" height="${H}" fill="${i===selI?'#eef1ef':'transparent'}"/><text x="${L-6}" y="${y+12}" text-anchor="end" class="${i===selI?'b':''}">${sname(r.o)}</text><rect x="${x}" y="${y+2}" width="${w}" height="12" rx="2" fill="${neg?'#c9481a':'#1a56a0'}"/><text x="${neg?x0+4:x+w+4}" y="${y+12}">${R(r.gain)}</text></g>`}).join('')}<text x="${x0-6}" y="${h-4}" text-anchor="end" class="m">◀ worse off</text><text x="${x0+6}" y="${h-4}" class="m">better off ▶</text></svg>`}
+function sumChart(pop,tot){const W=410,L=150,BW=W-L-110,H=22,ks=Object.keys(V),mx=Math.max(1,...ks.map(k=>pop[k]||0));
+  return `<svg class="ch2" viewBox="0 0 ${W} ${ks.length*H+4}" role="img" aria-label="Residents by best scenario">${ks.map((k,i)=>{const y=i*H+3,w=(pop[k]||0)?Math.max(2,BW*(pop[k]||0)/mx):0;
+    return `<text x="${L-6}" y="${y+12}" text-anchor="end">${SHORT[k]}</text><rect x="${L}" y="${y+2}" width="${w}" height="12" rx="2" fill="${V[k].col}"/><text x="${L+w+5}" y="${y+12}">${N(pop[k]||0)} (${P((pop[k]||0)/tot)})</text>`}).join('')}</svg>`}
+let on=false,layer=null,mk=L.layerGroup(),marks={},linkL=L.layerGroup(),pinned=null,sel=0,best={},polys={};
 const $=id=>document.getElementById(id),out=$('sOut');
 function shown(p){return 'AB'.includes(p.t)||A.all}
 function recalc(){best={};for(const id in SCN)best[id]=rank(id);restyle();legend();pinned?showZone(pinned):summary()}
@@ -904,25 +919,30 @@ const VAL={benefit:r=>r.gain,hours:r=>r.hrs,jobs:r=>r.net,sub:r=>r.subPer,burden
 function colour(id){const b=best[id][0];if(A.color==='best')return ocol(b.o);const [br,c]=BR[A.color];return pick(VAL[A.color](b),br,c)}
 function legend(){let rows;if(A.color==='best')rows=Object.values(V).map(v=>[v.col,v.name]);else{const [,c,l]=BR[A.color];rows=c.map((x,i)=>[x,l[i]])}
   $('sLeg').innerHTML=rows.map(x=>`<span><i class="sw" style="background:${x[0]}"></i>${x[1]}</span>`).join('')}
-function restyle(){for(const id in polys){const l=polys[id],c=colour(id);l.setStyle({color:id===pinned?'#14212b':c,weight:id===pinned?3:1,fillColor:c,fillOpacity:.75})}}
-function draw(){if(layer)map.removeLayer(layer);polys={};
-  layer=L.geoJSON({type:'FeatureCollection',features:D.zones.features.filter(f=>shown(f.properties))},{renderer:canvas,style:()=>({weight:1,fillOpacity:.75}),onEachFeature:(f,l)=>{const id=f.properties.zone_id;polys[id]=l;
-    l.bindTooltip(()=>`<b>${esc(id)}: ${esc(SCN[id][12])}</b><br>Best: ${oname(best[id][0].o)}`,{sticky:true});
-    l.on('mouseover',()=>{l.setStyle({weight:3,color:'#14212b'});if(!pinned)showZone(id,true)});
-    l.on('mouseout',()=>{if(id!==pinned)l.setStyle({weight:1,color:colour(id)});if(!pinned){summary();linkL.clearLayers()}});
-    l.on('click',e=>{L.DomEvent.stopPropagation(e);pinned=id;sel=0;restyle();showZone(id);history.replaceState(null,'','#scenarios/'+id)})}}).addTo(map);
-  linkL.addTo(map);restyle()}
+function restyle(){for(const id in polys)restyleOne(id)}
+function bind(l,id,poly){l.bindTooltip(()=>`<b>${esc(id)}: ${esc(SCN[id][12])}</b><br>Best: ${oname(best[id][0].o)}`,{sticky:true});
+  l.on('mouseover',()=>{if(poly)l.setStyle({weight:3,color:'#14212b'});else l.setStyle({weight:2.5,color:'#14212b'});if(!pinned)showZone(id,true)});
+  l.on('mouseout',()=>{restyleOne(id);if(!pinned){summary();linkL.clearLayers()}});
+  l.on('click',e=>{L.DomEvent.stopPropagation(e);pinned=id;sel=0;restyle();showZone(id);history.replaceState(null,'','#scenarios/'+id)})}
+function draw(){if(layer)map.removeLayer(layer);mk.clearLayers();polys={};marks={};
+  layer=L.geoJSON({type:'FeatureCollection',features:D.zones.features.filter(f=>shown(f.properties))},{renderer:canvas,style:()=>({weight:1,fillOpacity:.75}),onEachFeature:(f,l)=>{const id=f.properties.zone_id;polys[id]=l;bind(l,id,true)}}).addTo(map);
+  // Zones are small at metro scale, so a dot sized by residents marks each one until you zoom in.
+  Object.entries(polys).sort((a,b)=>SCN[b[0]][1]-SCN[a[0]][1]).forEach(([id,l])=>{const m=L.circleMarker(l.getBounds().getCenter(),{renderer:canvas,radius:3+Math.sqrt(SCN[id][1])/45,weight:1,color:'#fff',fillOpacity:.9});marks[id]=m;bind(m,id,false);m.addTo(mk)});
+  zoomMarks();linkL.addTo(map);restyle()}
+function zoomMarks(){if(!on)return;if(map.getZoom()<12)mk.addTo(map);else map.removeLayer(mk)}
+map.on('zoomend',zoomMarks);
+function restyleOne(id){const c=colour(id),p=id===pinned;if(polys[id])polys[id].setStyle({color:p?'#14212b':c,weight:p?3:1,fillColor:c,fillOpacity:.75});if(marks[id])marks[id].setStyle({color:p?'#14212b':'#fff',weight:p?2.5:1,fillColor:c})}
 function link(id){linkL.clearLayers();L.geoJSON({type:'FeatureCollection',features:D.links.features.filter(f=>f.properties.zone_id===id)},{interactive:false,style:{color:'#14212b',weight:4,dashArray:'6 4'}}).addTo(linkL)}
 function summary(){const ids=Object.keys(SCN).filter(id=>shown({t:SCN[id][0]}));const c={},pop={};let res=0,gain=0,lose=0;
   for(const id of ids){const b=best[id][0],k=b.o.v;c[k]=(c[k]||0)+1;pop[k]=(pop[k]||0)+SCN[id][1];res+=SCN[id][1];if(b.gain<0)lose++;}
-  out.innerHTML=`<h3 style="margin-top:0">Across ${ids.length} zones (${N(res)} residents)</h3><table><tr><th>Best scenario</th><th class="n">Zones</th><th class="n">Residents</th></tr>${Object.entries(V).map(([k,v])=>`<tr><td><i class="sw" style="background:${v.col}"></i> ${v.name}</td><td class="n">${c[k]||0}</td><td class="n">${N(pop[k]||0)}</td></tr>`).join('')}</table>
+  out.innerHTML=`<h3 style="margin-top:0">Across ${ids.length} zones (${N(res)} residents)</h3><div class="ct">Residents by best scenario</div>${sumChart(pop,res)}<details><summary style="cursor:pointer;font-size:13.5px">Table</summary><table><tr><th>Best scenario</th><th class="n">Zones</th><th class="n">Residents</th></tr>${Object.entries(V).map(([k,v])=>`<tr><td><i class="sw" style="background:${v.col}"></i> ${v.name}</td><td class="n">${c[k]||0}</td><td class="n">${N(pop[k]||0)}</td></tr>`).join('')}</table></details>
   <p style="font-size:13.5px;margin:0">${lose?`In <b>${lose}</b> zones even the best option costs a commuter household more in fares than its time saved is worth. `:''}Hover over a zone to see its best three scenarios.</p>`}
 function showZone(id,hover){const z=SCN[id],rs=best[id],r=rs[Math.min(sel,7)];link(id);
   const top=rs.slice(0,3).map((x,i)=>`<button class="opt${i===sel?' on':''}" data-i="${i}" style="--c:${ocol(x.o)}"><b>${i+1}. ${oname(x.o)}</b> <span style="float:right">${Math.round(x.score)}</span><br><span class="why">${why(x)}</span><span class="k"><span>${Math.round(x.hrs)} h saved/month</span><span>${x.gain>=0?'+':''}${R(x.gain)}/month a household</span><span>${N(x.net)} net jobs</span><span>${x.subPer>0?R(x.subPer)+' subsidy/trip':'covered by fares'}</span></span></button>`).join('');
   const all=rs.map((x,i)=>`<tr class="click" data-i="${i}"><td>${i+1}. ${oname(x.o)}</td><td class="n">${Math.round(x.score)}</td><td class="n">${R(x.gain)}</td><td class="n">${N(x.net)}</td><td class="n">${R(x.subPer)}</td><td>${RISK[Math.round(x.rk)]||RISK[3]}</td></tr>`).join('');
   out.innerHTML=`${pinned?'<button class="pin" id="sClear">Clear selection</button>':''}<h3 style="margin-top:0">${esc(id)}: ${esc(z[12])}</h3>
   <div class="sub">${TIER[z[0]]}. About ${N(z[1])} residents. Typical household income about <b>${R(r.income)} a month</b>${z[13]?' (no wealth data, metro median used)':''}. ${pinned?'':hover?'Select the zone to keep it.':''}</div>
-  <b>Best three</b>${top}
+  <b>Best three</b>${top}<div class="ct">All eight options: score out of 100</div>${scoreChart(rs,sel)}<div class="ct">Household better or worse off a month (time saved minus new fares)</div>${moneyChart(rs,sel)}
   <div class="blk"><b>Families</b>: for a household with one commuter<br>${r.saved>0?`About <b>${Math.round(r.hrs)} hours a month</b> saved (${Math.round(r.walk)} min on foot becomes ${Math.round(r.trip)} min), worth ${R(r.tv)}.`:`<span class="warn">No faster than walking (${Math.round(r.walk)} min on foot against ${Math.round(r.trip)} min).</span>`} New fares cost ${R(r.extra)} a month, so the household is <b class="${r.gain<0?'warn':''}">${r.gain>=0?'better off by '+R(r.gain):'worse off by '+R(-r.gain)}</b> a month.<br>Fares for the whole commute take ${P(r.before)} of income today${r.before>.1?' (already over the 10% policy limit)':''} and ${P(r.after)} with the feeder${r.after>.1&&r.before<=.1?', <span class="warn">pushing it over the 10% limit</span>':''}. Opportunities reachable within 45 minutes rise by ${N(z[10])}%.</div>
   <div class="blk"><b>Employment</b><br>${N(r.jobs)} jobs running the service, at an assumed ${R(G.drv)} a month for drivers. About ${N(r.lost)} existing taxi jobs serve these trips today. That leaves <b>${N(r.net)} net jobs</b>. The Level 8 model suggests starting with ${MODEL[z[14]]}, so most affected drivers could move into the new service rather than lose work.</div>
   <div class="blk"><b>Economics</b> (a year)<table><tr><td>Vehicles, with spares</td><td class="n">${N(r.fleet)}</td></tr><tr><td>Riders a day</td><td class="n">${N(r.riders)}${r.full?' (full at peak)':''}</td></tr><tr><td>Running and finance cost</td><td class="n">${Rk(r.cost)}</td></tr><tr><td>Fare revenue at ${R(r.fare)}</td><td class="n">${Rk(r.rev)}</td></tr><tr><td>${r.sub>0?'Public subsidy needed':'Surplus'}</td><td class="n">${Rk(Math.abs(r.sub))}</td></tr><tr><td>Cost per trip / subsidy per trip</td><td class="n">${R(r.costPer)} / ${R(Math.max(0,r.subPer))}</td></tr></table></div>
@@ -943,7 +963,7 @@ window.addEventListener('keydown',e=>{if(on&&(e.key==='ArrowRight'||e.key==='Arr
 const mS=$('mStory'),mB=$('mBus'),mC=$('mScn'),oS=mS.onclick,oB=mB.onclick;
 function enter(){if(on)return;on=true;if(mode){mode=false;document.body.classList.remove('bus')}BUS.enable(false);setLayers([]);document.body.classList.add('scn');[mS,mB].forEach(b=>b.classList.remove('on'));mC.classList.add('on');
   for(const id in SCN)if(!best[id])best[id]=rank(id);draw();legend();pinned?showZone(pinned):summary();if(!pinned)map.flyToBounds(bound.getBounds(),{duration:.5});history.replaceState(null,'','#scenarios'+(pinned?'/'+pinned:''))}
-function leave(){on=false;document.body.classList.remove('scn');mC.classList.remove('on');if(layer){map.removeLayer(layer);layer=null}linkL.clearLayers();map.removeLayer(linkL)}
+function leave(){on=false;document.body.classList.remove('scn');mC.classList.remove('on');if(layer){map.removeLayer(layer);layer=null}map.removeLayer(mk);linkL.clearLayers();map.removeLayer(linkL)}
 mC.onclick=enter;mS.onclick=()=>{if(on){leave();mS.classList.add('on');show(step)}else oS()};mB.onclick=()=>{if(on)leave();oB()};
 recalc();{const m=(window.H0||'').match(/^#scenarios(?:\/([A-Z]{3}-\d{3}))?/);if(m){if(m[1]&&SCN[m[1]]){pinned=m[1];if(!'AB'.includes(SCN[pinned][0])){A.all=true;$('sCD').checked=true}}enter();if(pinned){const l=polys[pinned];if(l)map.fitBounds(l.getBounds(),{maxZoom:13})}}}
 return {calc,rank,A};
